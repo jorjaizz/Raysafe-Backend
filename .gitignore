@@ -1,0 +1,20 @@
+# Dependencias
+node_modules/
+
+# Compilación TypeScript
+dist/
+
+# Variables de entorno (¡nunca subir el .env real!)
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# (En Windows) carpeta de Prisma generada localmente
+prisma/*.db
