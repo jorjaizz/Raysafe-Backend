@@ -10,10 +10,9 @@
  * - express -> los middlewares son funciones (req, res, next).
  */
 import type { NextFunction, Request, Response } from 'express';
-import { ApiResponse } from '../utils/ApiResponse';
 
 export const notFoundHandler = (_req: Request, res: Response) => {
-  return ApiResponse.error(res, 'Ruta no encontrada', 404);
+  return res.status(404).json({ error: 'Ruta no encontrada' });
 };
 
 export const errorHandler = (
@@ -23,5 +22,5 @@ export const errorHandler = (
   _next: NextFunction,
 ) => {
   console.error('Error:', err);
-  return ApiResponse.error(res, 'Error interno del servidor', 500);
+  return res.status(500).json({ error: 'Error interno del servidor' });
 };

@@ -1,11 +1,19 @@
 /**
  * @file database.ts
  * @capa Config (Configuración)
- * @descripcion Instancia única del cliente de Prisma, compartida por toda la app.
+ * @descripcion Pool de conexiones MySQL compartido por toda la app.
  *
  * Paquetes usados:
- * - @prisma/client -> cliente tipado para ejecutar consultas contra PostgreSQL.
+ * - mysql2 -> cliente nativo de MySQL (sin ORM) con soporte de promesas.
  */
-import { PrismaClient } from '@prisma/client';
+import { createPool } from 'mysql2/promise';
+import { env } from './env';
 
-export const prisma = new PrismaClient();
+export const pool = createPool({
+  host: env.DB_HOST,
+  port: env.DB_PORT,
+  user: env.DB_USER,
+  password: env.DB_PASSWORD,
+  database: env.DB_NAME,
+  connectionLimit: 10,
+});

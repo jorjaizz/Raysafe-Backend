@@ -12,7 +12,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import healthRoutes from './routes/health.routes';
+import abuseTypeRoutes from './routes/abuseType.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -23,7 +23,7 @@ app.use(cors());
 app.use(express.json());
 
 // Montar rutas bajo /api
-app.use('/api', healthRoutes);
+app.use('/api', abuseTypeRoutes);
 
 // Manejo de errores (siempre al final)
 app.use(notFoundHandler);
