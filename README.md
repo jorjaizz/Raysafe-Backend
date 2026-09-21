@@ -91,6 +91,217 @@ Cada capa importa solo a la inmediata: el controller nunca toca MySQL ni el serv
 - `409` conflicto: no se puede eliminar porque el registro está asociado a otros (violación de foreign key)
 - `500` error interno (`{ "error": "Error interno del servidor" }`)
 
+---
+
+## Endpoints del proyecto (fuera del CRUD inicial)
+
+Módulos construidos sobre el CRUD base, agrupados por área. Todos viven en `src/routes/` y están montados en `/api`.
+
+### Autenticación
+
+#### `POST /api/auth/login`
+Inicia sesión con email y contraseña. Devuelve el **JWT** y los datos públicos del usuario. Usa el mismo 401 para email inexistente y contraseña incorrecta (evita enumerar usuarios).
+
+Body:
+```json
+{
+  "email": "operator@raysafe.gt",
+  "password": "1234"
+}
+```
+Respuesta `200`:
+```json
+{
+  "token": "eyJhbGciOi...",
+  "user": {
+    "id": 2,
+    "name": "Operador RaySafe",
+    "email": "operator@raysafe.gt",
+    "role": "operator"
+  }
+}
+```
+Errores: `400` body inválido · `401` credenciales inválidas.
+
+#### `GET /api/auth/me`
+Datos del usuario autenticado. Requiere cabecera `Authorization: Bearer <token>` (obtenido en login).
+
+Respuesta `200`: `{ "id": 2, "name": "...", "email": "...", "role": "operator" }`.
+Errores: `401` sin token o token inválido · `404` usuario no existe/desactivado.
+
+### Catálogos (públicos, alimentan formularios del frontend)
+
+#### `GET /api/abuse-types?category=human|animal`
+Tipos de abuso disponibles para denunciar. `category` es opcional (`human` o `animal`); si se pasa otro valor responde `400`.
+
+Respuesta `200`:
+```json
+[
+  { "id": 1, "category": "human", "name": "Violencia física", "description": "Agresión que causa daño corporal a una persona." },
+  { "id": 16, "category": "animal", "name": "Maltrato físico", "description": "Golpes, heridas u otras lesiones infligidas a un animal." }
+]
+```
+
+#### `GET /api/locations/departments`
+Lista los **22 departamentos** de Guatemala.
+
+Respuesta `200`:
+```json
+["Alta Verapaz", "Baja Verapaz", "Chimaltenango", "Chiquimula", "..."]
+```
+
+#### `GET /api/locations/municipalities?department=X`
+Municipios de un departamento. `department` es obligatorio (si falta, responde `400`).
+
+Respuesta `200` (ej. `?department=Guatemala`):
+```json
+[
+  { "id": 1, "city": "Ciudad de Guatemala", "department": "Guatemala" },
+  { "id": 2, "city": "Mixco", "department": "Guatemala" }
+]
+```
+
+#### `GET /api/educational-guides`
+Guías educativas (leyes y material de prevención). Sin autenticación, devuelve todas.
+
+Respuesta `200`:
+```json
+[
+  {
+    "id": 1,
+    "title": "Ley para Prevenir, Sancionar y Erradicar la Violencia Intrafamiliar (Decreto 97-96)",
+    "description": "Marco legal guatemalteco que define la violencia intrafamiliar y establece medidas de protección para las víctimas.",
+    "category": "prevención - humano",
+    "pdf_file_url": "https://siteal.iiep.unesco.org/sites/default/files/sit_accion_files/decreto_97-1996.pdf"
+  }
+]
+```
+
+#### `GET /api/help-resources`
+Recursos de ayuda **activos** (líneas de emergencia, centros de apoyo, albergues). Incluye la ubicación legible mediante JOIN con `locations`. `abuse_type_id: null` significa que aplica a todos los tipos.
+
+Respuesta `200`:
+```json
+[
+  {
+    "id": 5,
+    "name": "Centro de Apoyo Integral a la Mujer (CAIMU)",
+    "type": "support_center",
+    "abuse_type_id": 13,
+    "location_id": 1,
+    "address": "Zona 1, Ciudad de Guatemala",
+    "phone": "36307574",
+    "schedule": "Lunes a viernes 8:00-16:00",
+    "city": "Cobán",
+    "department": "Alta Verapaz"
+  }
+]
+```
+`type` acepta `emergency_line` | `support_center` | `shelter`.
+
+### Denuncias (público ciudadano, sin login)
+
+#### `POST /api/reports`
+Crea una denuncia anónima. El backend asigna el `public_id` (`DN-XXXX-XXXX`), el estado inicial `Recibida`, la institución según la categoría del abuso (human → MP, animal → UBA) y genera un **token que se muestra una sola vez**: es la llave del ciudadano para seguir/modificar su denuncia.
+
+Body:
+```json
+{
+  "abuse_type_id": 1,
+  "description": "Mi vecino agrede físicamente a su pareja todas las noches.",
+  "specific_address": "Colonia El Milagro, lote 12",
+  "location_id": 1,
+  "notification_email": "test@example.com"
+}
+```
+`abuse_type_id` y `description` son obligatorios; `specific_address` (≤250), `location_id` y `notification_email` opcionales.
+
+Respuesta `201`:
+```json
+{
+  "id": 122,
+  "public_id": "DN-1683-6659",
+  "token": "38c1527b6f11a4d3e9f0c2b5a8d7e6f19c0b3a2d4e5f60718",
+  "abuse_type_id": 1,
+  "report_status_id": 1,
+  "institution_id": 1,
+  "description": "Mi vecino agrede físicamente a su pareja todas las noches.",
+  "specific_address": "Colonia El Milagro, lote 12",
+  "location_id": 1,
+  "risk_level": null,
+  "notification_email": "test@example.com",
+  "created_at": "2026-09-21T07:37:05.000Z"
+}
+```
+Errores: `400` body inválido o tipo de abuso inexistente · `500` si no se encuentra institución/estado.
+
+> **Importante:** el `token` solo se devuelve aquí. La BD guarda únicamente su hash (SHA-256) en `token_hash`.
+
+#### `GET /api/reports/track/:publicId`
+Consulta el estado de una denuncia sin revelar datos sensibles.
+
+- **Sin token:** vista básica (solo estado y tipo).
+- **Con `?token=<valor>` válido:** vista explícita con todos los datos.
+
+Ejemplo `GET /api/reports/track/DN-1683-6659` → `200`:
+```json
+{
+  "public_id": "DN-1683-6659",
+  "status_name": "Recibida",
+  "abuse_type_name": "Violencia física",
+  "abuse_type_category": "human",
+  "created_at": "2026-09-21T07:37:05.000Z",
+  "updated_at": "2026-09-21T07:37:05.000Z"
+}
+```
+Con token válido agrega: `report_status_id, abuse_type_id, institution_id, institution_name, description, specific_address, location_id, city, department, notification_email`.
+
+Errores: `400` formato de `public_id` incorrecto · `403` token inválido · `404` denuncia no encontrada.
+
+#### `PUT /api/reports/track/:publicId`
+Permite al ciudadano corregir su denuncia **mientras el estado sea `Recibida`**. Requiere token y al menos un campo a modificar. Si la denuncia ya avanzó a otro estado responde `409`.
+
+Body:
+```json
+{
+  "token": "38c1527b6f11a4d3e9f0c2b5a8d7e6f19c0b3a2d4e5f60718",
+  "description": "Descripción corregida tras aportar más detalles.",
+  "specific_address": "Colonia El Milagro, lote 12, casa 3"
+}
+```
+Campos editables: `description`, `specific_address`, `location_id`, `notification_email` (los opcionales aceptan `null` para limpiarlos).
+
+Respuesta `200`: la denuncia actualizada con la **vista explícita** (igual que el GET con token).
+Errores: `400` sin token o sin campos editables · `403` token inválido · `404` denuncia no encontrada · `409` estado distinto de `Recibida`.
+
+### Estadísticas (público)
+
+#### `GET /api/stats/dashboard`
+Dashboard de abuso: total nacional, total de departamentos y, por cada departamento, su total y el desglose por categoría amplia (con porcentaje para barras de progreso). Los departamentos sin denuncias aparecen con total `0` y desglose vacío. El desglose solo incluye categorías con al menos una denuncia.
+
+Categorías calculadas por mapping de `abuse_type_id`: `VIOLENCIA GÉNERO/FAMILIAR`, `ABUSO SEXUAL`, `ABUSO INFANTIL`, `TRATA Y EXPLOTACIÓN`, `ADULTO MAYOR/DISCRIMINACIÓN`, `ABUSO ANIMAL`.
+
+Respuesta `200`:
+```json
+{
+  "total_denuncias_nacional": 121,
+  "total_departamentos": 22,
+  "departamentos": [
+    {
+      "departamento_id": "Alta Verapaz",
+      "nombre_departamento": "Alta Verapaz",
+      "total_denuncias": 4,
+      "desglose_por_categoria": [
+        { "categoria": "ABUSO ANIMAL", "cantidad": 3, "porcentaje": 75 },
+        { "categoria": "TRATA Y EXPLOTACIÓN", "cantidad": 1, "porcentaje": 25 }
+      ]
+    }
+  ]
+}
+```
+
+---
+
 ## Cómo crear un endpoint nuevo
 
 Usa el módulo `abuse_types` como referencia. Para una nueva tabla `X`, crea 4 archivos y monta la ruta:

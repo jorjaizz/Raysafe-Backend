@@ -13,6 +13,12 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import abuseTypeRoutes from './routes/abuseType.routes';
+import authRoutes from './routes/auth.routes';
+import educationalGuideRoutes from './routes/educationalGuide.routes';
+import helpResourceRoutes from './routes/helpResource.routes';
+import locationRoutes from './routes/location.routes';
+import reportRoutes from './routes/report.routes';
+import statsRoutes from './routes/stats.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -23,7 +29,13 @@ app.use(cors());
 app.use(express.json());
 
 // Montar rutas bajo /api
+app.use('/api', authRoutes);
 app.use('/api', abuseTypeRoutes);
+app.use('/api', locationRoutes);
+app.use('/api', reportRoutes);
+app.use('/api', educationalGuideRoutes);
+app.use('/api', helpResourceRoutes);
+app.use('/api', statsRoutes);
 
 // Manejo de errores (siempre al final)
 app.use(notFoundHandler);

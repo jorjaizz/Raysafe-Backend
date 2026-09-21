@@ -9,10 +9,20 @@ import * as abuseTypeService from '../services/abuseType.service';
 import { HttpError } from '../utils/HttpError';
 import { parseId } from '../utils/parseId';
 
-// GET /api/abuse-types
-export const getAbuseTypes = async (_req: Request, res: Response) => {
+// GET /api/abuse-types?category=human|animal
+export const getAbuseTypes = async (req: Request, res: Response) => {
   try {
-    const abuseTypes = await abuseTypeService.getAllAbuseTypes();
+    const category = req.query.category;
+
+    if (category !== undefined && category !== 'human' && category !== 'animal') {
+      return res.status(400).json({
+        error: "El parámetro category debe ser 'human' o 'animal'",
+      });
+    }
+
+    const abuseTypes = await abuseTypeService.getAllAbuseTypes(
+      category as 'human' | 'animal' | undefined,
+    );
     return res.status(200).json(abuseTypes);
   } catch (error) {
     console.error('Error al obtener abuse_types:', error);
