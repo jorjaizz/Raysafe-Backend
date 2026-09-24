@@ -79,6 +79,15 @@ export const findInstitutionByCategory = async (
   return (rows[0]?.id as number | undefined) ?? null;
 };
 
+export const locationExists = async (id: number): Promise<boolean> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT id FROM locations WHERE id = ? LIMIT 1',
+    [id],
+  );
+
+  return rows.length > 0;
+};
+
 export const publicIdExists = async (publicId: string): Promise<boolean> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     'SELECT id FROM reports WHERE public_id = ? LIMIT 1',

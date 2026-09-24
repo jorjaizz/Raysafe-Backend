@@ -10,11 +10,8 @@ import * as agentRepository from '../repositories/agent.repository';
 import { HttpError } from '../utils/HttpError';
 import bcrypt from 'bcryptjs';
 
-const buildPublicCode = (id: number): string => `PNC-${String(id).padStart(4, '0')}`;
-
 export interface AgentListItem {
   id: number;
-  publicCode: string;
   name: string;
   email: string;
   assignedCases: number;
@@ -23,7 +20,6 @@ export interface AgentListItem {
 
 export interface AgentDetail {
   id: number;
-  publicCode: string;
   name: string;
   email: string;
   roleId: number;
@@ -65,7 +61,6 @@ export const listAgents = async (params: ListAgentsParams): Promise<AgentListRes
 
   const data: AgentListItem[] = rows.map((row) => ({
     id: row.id,
-    publicCode: buildPublicCode(row.id),
     name: row.name,
     email: row.email,
     assignedCases: Number(row.assigned_cases ?? 0),
@@ -92,7 +87,6 @@ export const getAgentDetail = async (
 
   return {
     id: row.id,
-    publicCode: buildPublicCode(row.id),
     name: row.name,
     email: row.email,
     roleId: row.role_id,

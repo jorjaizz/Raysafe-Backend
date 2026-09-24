@@ -20,6 +20,7 @@ import educationalGuideRoutes from './routes/educationalGuide.routes';
 import helpResourceRoutes from './routes/helpResource.routes';
 import locationRoutes from './routes/location.routes';
 import reportRoutes from './routes/report.routes';
+import reportStatusRoutes from './routes/reportStatus.routes';
 import statsRoutes from './routes/stats.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
@@ -37,6 +38,7 @@ app.use('/api', agentRoutes);
 app.use('/api', abuseTypeRoutes);
 app.use('/api', locationRoutes);
 app.use('/api', reportRoutes);
+app.use('/api', reportStatusRoutes);
 app.use('/api', educationalGuideRoutes);
 app.use('/api', helpResourceRoutes);
 app.use('/api', statsRoutes);
