@@ -68,6 +68,7 @@ export const verifyTrackingToken = (token: string, tokenHash: string): boolean =
 
 const toBasicView = (report: reportRepository.TrackReport) => ({
   public_id: report.public_id,
+  report_status_id: report.report_status_id,
   status_name: report.status_name,
   abuse_type_name: report.abuse_type_name,
   abuse_type_category: report.abuse_type_category,
@@ -134,6 +135,14 @@ export const updateReportByReporter = async (
     );
   }
 
+  if (
+    fields.location_id !== undefined &&
+    fields.location_id !== null &&
+    !(await reportRepository.locationExists(fields.location_id))
+  ) {
+    throw new HttpError(400, 'La ubicación no existe');
+  }
+
   await reportRepository.updateReporterFields(publicId, fields);
 
   const updated = await reportRepository.findTrackByPublicId(publicId);
@@ -146,6 +155,10 @@ export const createReport = async (data: CreateReportParams) => {
 
   if (!abuseType) {
     throw new HttpError(400, 'El tipo de abuso no existe');
+  }
+
+  if (data.location_id !== undefined && !(await reportRepository.locationExists(data.location_id))) {
+    throw new HttpError(400, 'La ubicación no existe');
   }
 
   const institutionId = await reportRepository.findInstitutionByCategory(abuseType.category);

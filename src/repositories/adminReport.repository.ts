@@ -94,7 +94,7 @@ export const countByInstitution = async (
      INNER JOIN report_statuses s ON s.id = r.report_status_id
      LEFT JOIN users u ON u.id = r.agent_id
      LEFT JOIN locations l ON l.id = r.location_id
-     WHERE r.institution_id = ? ${searchCond.clause}`,
+     WHERE r.institution_id = ? AND r.agent_id IS NOT NULL ${searchCond.clause}`,
     values,
   );
 
@@ -124,7 +124,7 @@ export const listByInstitution = async (
      INNER JOIN report_statuses s ON s.id = r.report_status_id
      LEFT JOIN users u ON u.id = r.agent_id
      LEFT JOIN locations l ON l.id = r.location_id
-     WHERE r.institution_id = ? ${searchCond.clause}
+     WHERE r.institution_id = ? AND r.agent_id IS NOT NULL ${searchCond.clause}
      ORDER BY r.id DESC
      LIMIT ? OFFSET ?`,
     values,
