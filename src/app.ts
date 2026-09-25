@@ -14,6 +14,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import abuseTypeRoutes from './routes/abuseType.routes';
 import adminReportRoutes from './routes/adminReport.routes';
+import agentReportRoutes from './routes/agentReport.routes';
 import agentRoutes from './routes/agent.routes';
 import authRoutes from './routes/auth.routes';
 import educationalGuideRoutes from './routes/educationalGuide.routes';
@@ -34,6 +35,7 @@ app.use(express.json());
 // Montar rutas bajo /api
 app.use('/api', authRoutes);
 app.use('/api', adminReportRoutes);
+app.use('/api', agentReportRoutes);
 app.use('/api', agentRoutes);
 app.use('/api', abuseTypeRoutes);
 app.use('/api', locationRoutes);

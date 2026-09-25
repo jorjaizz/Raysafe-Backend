@@ -24,9 +24,10 @@ export interface AbuseTypeInput {
 
 const SELECT_COLUMNS = 'id, category, name, description';
 
-export const findAll = async (): Promise<AbuseType[]> => {
+export const findAll = async (category?: 'human' | 'animal'): Promise<AbuseType[]> => {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT ${SELECT_COLUMNS} FROM abuse_types ORDER BY id`,
+    `SELECT ${SELECT_COLUMNS} FROM abuse_types ${category ? 'WHERE category = ?' : ''} ORDER BY id`,
+    category ? [category] : [],
   );
 
   return rows as AbuseType[];
