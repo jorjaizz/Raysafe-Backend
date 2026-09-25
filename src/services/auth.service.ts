@@ -34,7 +34,7 @@ export const login = async (email: string, password: string): Promise<LoginResul
 
   return {
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, institutionId: user.institutionId, institutionName: user.institutionName },
   };
 };
 

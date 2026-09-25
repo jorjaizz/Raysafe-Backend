@@ -29,15 +29,12 @@ export const findAll = async (category?: 'human' | 'animal'): Promise<AbuseType[
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT ${SELECT_COLUMNS} FROM abuse_types ORDER BY id`,
     );
-
     return rows as AbuseType[];
   }
-
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT ${SELECT_COLUMNS} FROM abuse_types WHERE category = ? ORDER BY id`,
     [category],
   );
-
   return rows as AbuseType[];
 };
 

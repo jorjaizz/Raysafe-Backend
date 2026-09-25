@@ -192,3 +192,221 @@ export const updateReporterFields = async (
 
   return result.affectedRows > 0;
 };
+
+export interface UnassignedReportRow {
+  id: number;
+  public_id: string;
+  abuse_type_name: string;
+  location_id: number | null;
+  status_name: string;
+  created_at: string;
+}
+
+export interface AgentReportDetailRow {
+  id: number;
+  public_id: string;
+  risk_level: RiskLevel | null;
+  description: string;
+  specific_address: string | null;
+  created_at: string;
+  abuse_type_name: string;
+  city: string | null;
+  department: string | null;
+}
+
+export interface EvidenceRow {
+  id: number;
+  file_type: string | null;
+  file_url: string;
+  description: string | null;
+  uploaded_at: string;
+}
+
+const buildSearchConditions = (search: string | undefined): { clause: string; values: unknown[] } => {
+  if (!search) {
+    return { clause: '', values: [] };
+  }
+
+  return {
+    clause:
+      'AND (r.public_id LIKE ? OR a.name LIKE ? OR l.city LIKE ? OR l.department LIKE ?)',
+    values: [search, search, search, search],
+  };
+};
+
+export const countUnassignedByInstitution = async (
+  institutionId: number,
+  search?: string,
+): Promise<number> => {
+  const searchCond = buildSearchConditions(search);
+  const values = [institutionId, ...searchCond.values];
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total
+     FROM reports r
+     INNER JOIN abuse_types a ON a.id = r.abuse_type_id
+     LEFT JOIN locations l ON l.id = r.location_id
+     WHERE r.institution_id = ? AND r.agent_id IS NULL ${searchCond.clause}`,
+    values,
+  );
+
+  return Number(rows[0]?.total ?? 0);
+};
+
+export const findUnassignedByInstitution = async (
+  institutionId: number,
+  search: string | undefined,
+  offset: number,
+  limit: number,
+): Promise<UnassignedReportRow[]> => {
+  const searchCond = buildSearchConditions(search);
+  const values = [institutionId, ...searchCond.values, limit, offset];
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT r.id,
+            r.public_id,
+            a.name AS abuse_type_name,
+            r.location_id,
+            s.name AS status_name,
+            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+     FROM reports r
+     INNER JOIN abuse_types a ON a.id = r.abuse_type_id
+     INNER JOIN report_statuses s ON s.id = r.report_status_id
+     LEFT JOIN locations l ON l.id = r.location_id
+     WHERE r.institution_id = ? AND r.agent_id IS NULL ${searchCond.clause}
+     ORDER BY r.created_at DESC
+     LIMIT ? OFFSET ?`,
+    values,
+  );
+
+  return rows as UnassignedReportRow[];
+};
+
+export const findUnassignedById = async (
+  id: number,
+  institutionId: number,
+): Promise<AgentReportDetailRow | null> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT r.id,
+            r.public_id,
+            r.risk_level,
+            r.description,
+            r.specific_address,
+            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+            a.name AS abuse_type_name,
+            l.city,
+            l.department
+     FROM reports r
+     INNER JOIN abuse_types a ON a.id = r.abuse_type_id
+     INNER JOIN report_statuses s ON s.id = r.report_status_id
+     LEFT JOIN locations l ON l.id = r.location_id
+     WHERE r.id = ? AND r.institution_id = ? AND r.agent_id IS NULL`,
+    [id, institutionId],
+  );
+
+  return (rows[0] as AgentReportDetailRow) ?? null;
+};
+
+export const findReportByIdForAgent = async (
+  id: number,
+  institutionId: number,
+): Promise<AgentReportDetailRow | null> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT r.id,
+            r.public_id,
+            r.risk_level,
+            r.description,
+            r.specific_address,
+            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+            a.name AS abuse_type_name,
+            l.city,
+            l.department
+     FROM reports r
+     INNER JOIN abuse_types a ON a.id = r.abuse_type_id
+     INNER JOIN report_statuses s ON s.id = r.report_status_id
+     LEFT JOIN locations l ON l.id = r.location_id
+     WHERE r.id = ? AND r.institution_id = ?`,
+    [id, institutionId],
+  );
+
+  return (rows[0] as AgentReportDetailRow) ?? null;
+};
+
+export const listEvidenceByReportId = async (reportId: number): Promise<EvidenceRow[]> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, file_type, file_url, description,
+            DATE_FORMAT(uploaded_at, '%Y-%m-%d %H:%i:%s') AS uploaded_at
+     FROM evidence
+     WHERE report_id = ?
+     ORDER BY id`,
+    [reportId],
+  );
+
+  return rows as EvidenceRow[];
+};
+
+export interface AssignReportResult {
+  id: number;
+  public_id: string;
+  risk_level: RiskLevel;
+  report_status_id: number;
+  agent_id: number;
+}
+
+export const assignToAgentWithRisk = async (
+  reportId: number,
+  agentId: number,
+  institutionId: number,
+  riskLevel: RiskLevel,
+): Promise<AssignReportResult | null> => {
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const [updateResult] = await conn.query<ResultSetHeader>(
+      `UPDATE reports
+       SET agent_id = ?, report_status_id = 2, risk_level = ?
+       WHERE id = ? AND institution_id = ? AND agent_id IS NULL AND report_status_id = 1`,
+      [agentId, riskLevel, reportId, institutionId],
+    );
+
+    if (updateResult.affectedRows === 0) {
+      await conn.rollback();
+      return null;
+    }
+
+    await conn.query(
+      `INSERT INTO status_history (report_id, previous_status_id, new_status_id, agent_id, comment)
+       VALUES (?, 1, 2, ?, 'Agente tomó la denuncia')`,
+      [reportId, agentId],
+    );
+
+    const [agentRows] = await conn.query<RowDataPacket[]>(
+      'SELECT name FROM users WHERE id = ?',
+      [agentId],
+    );
+    const agentName = agentRows[0]?.name ?? 'Agente';
+
+    await conn.query(
+      `INSERT INTO internal_notes (report_id, agent_id, content)
+       VALUES (?, ?, ?)`,
+      [reportId, agentId, `Denuncia tomada por agente ${agentName}`],
+    );
+
+    await conn.commit();
+
+    const [rows] = await conn.query<RowDataPacket[]>(
+      `SELECT id, public_id, risk_level, report_status_id, agent_id
+       FROM reports WHERE id = ?`,
+      [reportId],
+    );
+
+    return rows[0] as AssignReportResult;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+};
