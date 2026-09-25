@@ -24,10 +24,18 @@ export interface AbuseTypeInput {
 
 const SELECT_COLUMNS = 'id, category, name, description';
 
-export const findAll = async (): Promise<AbuseType[]> => {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT ${SELECT_COLUMNS} FROM abuse_types ORDER BY id`,
-  );
+export const findAll = async (category?: 'human' | 'animal'): Promise<AbuseType[]> => {
+  let query = `SELECT ${SELECT_COLUMNS} FROM abuse_types`;
+  const params: unknown[] = [];
+
+  if (category) {
+    query += ' WHERE category = ?';
+    params.push(category);
+  }
+
+  query += ' ORDER BY id';
+
+  const [rows] = await pool.query<RowDataPacket[]>(query, params);
 
   return rows as AbuseType[];
 };
