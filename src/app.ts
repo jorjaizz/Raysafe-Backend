@@ -1,20 +1,10 @@
-/**
- * @file app.ts
- * @descripcion Configura la aplicación Express: middlewares globales,
- *               montaje de rutas y manejo de errores. No arranca el servidor
- *               (eso lo hace server.ts); así es más fácil probarla.
- *
- * Paquetes usados:
- * - express -> framework web (router, json parsing).
- * - cors    -> permite peticiones desde otros orígenes (útil para el frontend).
- * - helmet  -> añade cabeceras HTTP de seguridad.
- */
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import abuseTypeRoutes from './routes/abuseType.routes';
 import adminReportRoutes from './routes/adminReport.routes';
-import agentReportRoutes from './routes/agentReport.routes';
+import agentReportsRoutes from './routes/agentReports.routes';
 import agentRoutes from './routes/agent.routes';
 import authRoutes from './routes/auth.routes';
 import educationalGuideRoutes from './routes/educationalGuide.routes';
@@ -23,6 +13,7 @@ import locationRoutes from './routes/location.routes';
 import reportRoutes from './routes/report.routes';
 import reportStatusRoutes from './routes/reportStatus.routes';
 import statsRoutes from './routes/stats.routes';
+import { UPLOADS_DIR } from './config/uploads';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -32,11 +23,15 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// Evidencias subidas: se sirven estáticamente desde uploads/.
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 // Montar rutas bajo /api
 app.use('/api', authRoutes);
 app.use('/api', adminReportRoutes);
 app.use('/api', agentReportRoutes);
 app.use('/api', agentRoutes);
+app.use('/api', agentReportsRoutes);
 app.use('/api', abuseTypeRoutes);
 app.use('/api', locationRoutes);
 app.use('/api', reportRoutes);

@@ -1,6 +1,7 @@
 /**
  * @file agentReport.controller.ts
  * @capa Controller (Controlador)
+
  * @descripcion Recibe la petición HTTP del agente (sus denuncias asignadas),
  *               delega la lógica al Service y devuelve la respuesta.
  *               No conoce MySQL.
@@ -9,6 +10,11 @@ import type { Request, Response } from 'express';
 import * as agentReportService from '../services/agentReport.service';
 import { HttpError } from '../utils/HttpError';
 import { parseId } from '../utils/parseId';
+ * @descripcion Recibe la petición HTTP del panel agente, delega la lógica al
+ *               Service y devuelve la respuesta. No conoce MySQL.
+ */
+import type { Request, Response } from 'express';
+import * as agentReportService from '../services/agentReport.service';
 
 const parsePositiveInt = (value: unknown, fallback: number): number | null => {
   if (value === undefined) {
@@ -28,8 +34,11 @@ const parsePositiveInt = (value: unknown, fallback: number): number | null => {
   return n;
 };
 
+
 // GET /api/agent/reports?page=1&limit=10&search=
 export const getMyReports = async (req: Request, res: Response) => {
+// GET /api/agent/reports/unassigned?page=1&limit=10&search=
+export const getUnassignedReports = async (req: Request, res: Response) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
 
@@ -42,8 +51,11 @@ export const getMyReports = async (req: Request, res: Response) => {
       });
     }
 
+
     const result = await agentReportService.listMyReports({
       agentId: req.agent!.id,
+    const result = await agentReportService.listUnassignedReports({
+      institutionId: req.agent!.institution_id,
       page,
       limit,
       search,
@@ -51,6 +63,7 @@ export const getMyReports = async (req: Request, res: Response) => {
 
     return res.status(200).json(result);
   } catch (error) {
+
     console.error('Error al listar denuncias del agente:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -109,6 +122,7 @@ export const updateStatus = async (req: Request, res: Response) => {
     }
 
     console.error('Error al cambiar estado de denuncia:', error);
+    console.error('Error al listar denuncias sin asignar:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };

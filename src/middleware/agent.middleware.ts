@@ -1,7 +1,10 @@
 /**
  * @file agent.middleware.ts
  * @capa Middleware
+
  * @descripcion requireAgent: restringe rutas al rol Agente (role 'agente').
+ * @descripcion requireAgent: restringe rutas al rol Agente (role_id = 1).
+
  *               Resuelve role_id e institution_id consultando la BD a partir del
  *               id puesto por authenticate (reutiliza req.user sin modificarlo)
  *               y adjunta el contexto en req.agent.

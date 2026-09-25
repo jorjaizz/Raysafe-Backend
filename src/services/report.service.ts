@@ -7,7 +7,9 @@
  */
 import crypto from 'node:crypto';
 import { HttpError } from '../utils/HttpError';
+import { fileTypeFromMimetype, fileUrlFor, removeStoredFile } from '../config/uploads';
 import * as reportRepository from '../repositories/report.repository';
+import * as evidenceRepository from '../repositories/evidence.repository';
 
 export interface CreateReportParams {
   abuse_type_id: number;
@@ -202,4 +204,109 @@ export const createReport = async (data: CreateReportParams) => {
     notification_email: report.notification_email,
     created_at: report.created_at,
   };
+};
+
+export interface EvidenceFile {
+  filename: string;
+  mimetype: string;
+}
+
+const findReportWithToken = async (publicId: string, token: string) => {
+  const report = await reportRepository.findTrackByPublicId(publicId);
+
+  if (!report) {
+    throw new HttpError(404, 'Denuncia no encontrada');
+  }
+
+  if (!token || !verifyTrackingToken(token, report.token_hash)) {
+    throw new HttpError(403, 'Token inválido');
+  }
+
+  return report;
+};
+
+const toEvidenceView = (evidence: evidenceRepository.Evidence) => ({
+  id: evidence.id,
+  fileType: evidence.file_type,
+  fileUrl: evidence.file_url,
+  description: evidence.description,
+  uploadedAt: evidence.uploaded_at,
+});
+
+export const addEvidence = async (
+  publicId: string,
+  token: string,
+  file: EvidenceFile,
+  description?: string,
+) => {
+  const report = await findReportWithToken(publicId, token);
+
+  try {
+    return await evidenceRepository.insertEvidence({
+      report_id: report.id,
+      file_type: fileTypeFromMimetype(file.mimetype),
+      file_url: fileUrlFor(file.filename),
+      description: description?.trim().slice(0, 250) || null,
+    });
+  } catch (error) {
+    // Si el INSERT falla, no dejamos un archivo huérfano en el disco.
+    await removeStoredFile(file.filename).catch(() => undefined);
+    throw error;
+  }
+};
+
+export const listEvidence = async (publicId: string, token: string) => {
+  const report = await findReportWithToken(publicId, token);
+  const rows = await evidenceRepository.listEvidenceByReportId(report.id);
+
+  return rows.map(toEvidenceView);
+};
+
+export const deleteEvidenceById = async (
+  publicId: string,
+  token: string,
+  evidenceId: number,
+) => {
+  const report = await findReportWithToken(publicId, token);
+
+  const evidence = await evidenceRepository.findEvidenceById(evidenceId);
+
+  if (!evidence || evidence.report_id !== report.id) {
+    throw new HttpError(404, 'Evidencia no encontrada');
+  }
+
+  await evidenceRepository.deleteEvidence(evidence.id);
+
+  // Solo borramos del disco si la evidencia es un archivo local; las
+  // evidencias viejas apuntan a URLs externas y no tienen archivo que borrar.
+  if (evidence.file_url.startsWith(fileUrlFor(''))) {
+    const filename = evidence.file_url.slice(fileUrlFor('').length);
+    await removeStoredFile(filename).catch(() => undefined);
+  }
+};
+
+export const updateEvidenceDescription = async (
+  publicId: string,
+  token: string,
+  evidenceId: number,
+  description?: string,
+) => {
+  const report = await findReportWithToken(publicId, token);
+
+  const evidence = await evidenceRepository.findEvidenceById(evidenceId);
+
+  if (!evidence || evidence.report_id !== report.id) {
+    throw new HttpError(404, 'Evidencia no encontrada');
+  }
+
+  const updated = await evidenceRepository.updateEvidenceDescription(
+    evidence.id,
+    description?.trim().slice(0, 250) || null,
+  );
+
+  if (!updated) {
+    throw new HttpError(404, 'Evidencia no encontrada');
+  }
+
+  return toEvidenceView(updated);
 };

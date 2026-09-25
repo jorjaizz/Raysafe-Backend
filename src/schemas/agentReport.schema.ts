@@ -23,4 +23,12 @@ export const updateStatusSchema = z.object({
     .string()
     .max(2000, 'El comentario supera los 2000 caracteres')
     .optional(),
+ * @descripcion Esquemas de zod para validar el body del endpoint "tomar denuncia".
+ */
+import { z } from 'zod';
+
+export const takeReportSchema = z.object({
+  risk_level: z.enum(['low', 'medium', 'high', 'critical'], {
+    errorMap: () => ({ message: 'Nivel de riesgo debe ser: low, medium, high o critical' })
+  })
 });
