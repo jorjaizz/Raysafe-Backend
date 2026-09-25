@@ -73,10 +73,12 @@ const buildSearchConditions = (search: string | undefined): { clause: string; va
     return { clause: '', values: [] };
   }
 
+  const term = `%${search}%`;
+
   return {
     clause:
       'AND (r.public_id LIKE ? OR u.name LIKE ? OR a.name LIKE ? OR l.city LIKE ? OR l.department LIKE ?)',
-    values: [search, search, search, search, search],
+    values: [term, term, term, term, term],
   };
 };
 
