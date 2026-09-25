@@ -6,7 +6,13 @@
  *               JWT y rol Agente (requireAgent). Se montan en /api.
  */
 import { Router } from 'express';
-import { getUnassignedReports } from '../controllers/agentReport.controller';
+import {
+  getMyReports,
+  getUnassignedReports,
+  getMyReportDetail,
+  addNote,
+  updateStatus,
+} from '../controllers/agentReport.controller';
 import { getUnassignedReportDetail } from '../controllers/agentReportDetail.controller';
 import { takeUnassignedReport } from '../controllers/agentReportTake.controller';
 import { requireAgent } from '../middleware/agent.middleware';
@@ -14,6 +20,13 @@ import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
+// Denuncias asignadas al agente (mis reportes)
+router.get('/agent/reports', authenticate, requireAgent, getMyReports);
+router.get('/agent/reports/:id', authenticate, requireAgent, getMyReportDetail);
+router.post('/agent/reports/:id/notes', authenticate, requireAgent, addNote);
+router.patch('/agent/reports/:id/status', authenticate, requireAgent, updateStatus);
+
+// Denuncias sin asignar (pool institucional)
 router.get('/agent/reports/unassigned', authenticate, requireAgent, getUnassignedReports);
 router.get('/agent/reports/unassigned/:id', authenticate, requireAgent, getUnassignedReportDetail);
 router.post('/agent/reports/unassigned/:id/take', authenticate, requireAgent, takeUnassignedReport);

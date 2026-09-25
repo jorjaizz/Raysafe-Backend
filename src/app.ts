@@ -29,9 +29,9 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // Montar rutas bajo /api
 app.use('/api', authRoutes);
 app.use('/api', adminReportRoutes);
-app.use('/api', agentReportRoutes);
-app.use('/api', agentRoutes);
 app.use('/api', agentReportsRoutes);
+app.use('/api', agentRoutes);
+app.use('/api', abuseTypeRoutes);
 app.use('/api', abuseTypeRoutes);
 app.use('/api', locationRoutes);
 app.use('/api', reportRoutes);
