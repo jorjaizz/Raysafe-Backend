@@ -1,14 +1,4 @@
-/**
- * @file app.ts
- * @descripcion Configura la aplicación Express: middlewares globales,
- *               montaje de rutas y manejo de errores. No arranca el servidor
- *               (eso lo hace server.ts); así es más fácil probarla.
- *
- * Paquetes usados:
- * - express -> framework web (router, json parsing).
- * - cors    -> permite peticiones desde otros orígenes (útil para el frontend).
- * - helmet  -> añade cabeceras HTTP de seguridad.
- */
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -39,6 +29,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // Montar rutas bajo /api
 app.use('/api', authRoutes);
 app.use('/api', adminReportRoutes);
+app.use('/api', agentReportRoutes);
 app.use('/api', agentRoutes);
 app.use('/api', agentReportsRoutes);
 app.use('/api', abuseTypeRoutes);
