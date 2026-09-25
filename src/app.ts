@@ -32,7 +32,6 @@ app.use('/api', adminReportRoutes);
 app.use('/api', agentReportsRoutes);
 app.use('/api', agentRoutes);
 app.use('/api', abuseTypeRoutes);
-app.use('/api', abuseTypeRoutes);
 app.use('/api', locationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api', reportStatusRoutes);
