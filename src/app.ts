@@ -22,6 +22,7 @@ import locationRoutes from './routes/location.routes';
 import reportRoutes from './routes/report.routes';
 import reportStatusRoutes from './routes/reportStatus.routes';
 import statsRoutes from './routes/stats.routes';
+import { UPLOADS_DIR } from './config/uploads';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -30,6 +31,9 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Evidencias subidas: se sirven estáticamente desde uploads/.
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Montar rutas bajo /api
 app.use('/api', authRoutes);

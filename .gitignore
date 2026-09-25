@@ -4,6 +4,9 @@ node_modules/
 # Compilación TypeScript
 dist/
 
+# Archivos subidos (evidencias)
+uploads/
+
 # Variables de entorno (¡nunca subir el .env real!)
 .env
 .env.local
