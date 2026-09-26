@@ -1,8 +1,5 @@
 allowBuilds:
-  '@prisma/client': set this to true or false
-  '@prisma/engines': set this to true or false
   esbuild: true
-  prisma: set this to true or false
 # Configuración de pnpm (incluso fuera de un monorepo).
 # Permite que estos paquetes ejecuten sus scripts de instalación.
 onlyBuiltDependencies:

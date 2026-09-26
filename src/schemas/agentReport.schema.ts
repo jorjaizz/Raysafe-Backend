@@ -27,12 +27,10 @@ export const updateStatusSchema = z.object({
 });
 
 // Coincide con el ENUM risk_level de la tabla reports.
-export const riskLevelSchema = z.enum(['low', 'medium', 'high', 'critical'], {
+const riskLevelSchema = z.enum(['low', 'medium', 'high', 'critical'], {
   errorMap: () => ({ message: 'El nivel de riesgo debe ser: low, medium, high o critical' }),
 });
 
 export const takeReportSchema = z.object({
   risk_level: riskLevelSchema,
 });
-
-export type RiskLevel = z.infer<typeof riskLevelSchema>;

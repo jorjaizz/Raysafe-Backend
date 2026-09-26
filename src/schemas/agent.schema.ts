@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 // Roles que soporta el form del frontend ("agent"/"admin"). El service los
 // traduce a los nombres reales de la tabla `roles` ('agente'/'admin').
-export const agentRoleEnum = z.enum(['agent', 'admin']);
+const agentRoleEnum = z.enum(['agent', 'admin']);
 
 export const createAgentSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio').max(120, 'El nombre supera los 120 caracteres'),

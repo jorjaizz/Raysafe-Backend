@@ -9,8 +9,8 @@ CREATE TABLE roles (
 CREATE TABLE report_statuses (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(40) NOT NULL UNIQUE,   -- recibida, en revisión, en investigación, cerrada, rechazada
-    sort_order  TINYINT NOT NULL               -- para ordenar el flujo del caso, serviria para por ejemplo una barra de progreso y no tener q
-											   -- hardcodear algo en el frontend
+    sort_order  TINYINT NOT NULL               -- orden del flujo del caso, permite pintar una barra de progreso
+											   -- sin hardcodear la secuencia en el frontend
 );
 
 CREATE TABLE locations (
@@ -62,7 +62,7 @@ CREATE TABLE reports (
     location_id         INT,
     institution_id      INT,
     risk_level          ENUM('low','medium','high','critical') DEFAULT 'medium',
-    notification_email  VARCHAR(150),                -- opcional chaballll
+    notification_email  VARCHAR(150),                -- opcional: contacto para notificaciones
     agent_id            INT,                         -- agente asignado
     created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -72,9 +72,8 @@ CREATE TABLE reports (
     FOREIGN KEY (report_status_id) REFERENCES report_statuses(id),
     FOREIGN KEY (location_id) REFERENCES locations(id),
     FOREIGN KEY (agent_id) REFERENCES users(id),
-    INDEX idx_public_id (public_id), -- los index sirven para poder buscar algo más rapido, ocupan mas almacenamiento en la base de datos
-									 -- pero despues de connectum m quede con ganas de probar a ver si notaba diferencia
-									 -- asi q aqui estan en la tabla mas importante ggs aunq luego vemos si lo quitamos o que jeje ggs
+    INDEX idx_public_id (public_id), -- índice para acelerar la búsqueda por folio público,
+									 -- a costa de almacenamiento adicional en la base de datos
     INDEX idx_location_type (location_id, abuse_type_id)
 );
 
@@ -89,8 +88,8 @@ CREATE TABLE evidence (
     FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE
 );
 
--- historial de cambios de estado, nos permitirá hacer cosas como tipo una linea de tiempo de cada denuncia
--- esta tuff por lo tipico de tener transparencia y lo tipico de llevar un registro de todo y tal
+-- Historial de cambios de estado, permite construir la línea de tiempo de cada denuncia.
+-- Existe por trazabilidad: deja constancia de cada transición del caso.
 CREATE TABLE status_history (
     id                  INT AUTO_INCREMENT PRIMARY KEY,
     report_id           INT NOT NULL,
@@ -116,8 +115,8 @@ CREATE TABLE internal_notes (
     FOREIGN KEY (agent_id) REFERENCES users(id)
 );
 
--- esto es para lo tipico de q cuando denuncie un pibe se muestre recursos a los que puede acudir, relacionados al tipo de denuncia q hizo
--- o nomas por si los quiere buscar en alguna parte de la web tambien estaria tuf
+-- Recursos de ayuda a los que puede acudir la persona que denuncia: líneas de
+-- emergencia, centros de apoyo y refugios, filtrables por tipo de abuso o ubicación.
 CREATE TABLE help_resources (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(150) NOT NULL,
@@ -132,9 +131,9 @@ CREATE TABLE help_resources (
     FOREIGN KEY (location_id) REFERENCES locations(id)
 );
 
--- esta tabla en general no se que tanto rente, porque ninguna funcionalidad depende de ella
--- podemos simplemente enviar el email y ya, pero, por tema de tener un registro de lo que manda el sistema quiza 
--- no viene mal, pero ni idea illo q godtsy decida
+-- Registro de las notificaciones salientes. Ninguna funcionalidad depende de esta
+-- tabla hoy: el envío del correo se puede resolver sin ella. Se conserva para
+-- dejar constancia de lo que el sistema envía.
 CREATE TABLE email_notifications (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     report_id       INT NOT NULL,
@@ -154,15 +153,14 @@ CREATE TABLE educational_guides (
     pdf_file_url        VARCHAR(500) NOT NULL
 );
 
--- al parecer, para hacer cosas como el mapa (porque habiamos dicho que capaz metiamos un mapa q muestre los lugares mas pegrilosos segun cuantas denuncias haya)
--- se recomiendo tener datos como latitud/longitud para poder hacerlo de manera más fácil
--- pero asi la real firmemente bien parado dijo aquel, no estoy muy seguro de como se haga, podriamos tratar despues para hacerlo mas tuff pero
--- si no simplemente dejariamos una tabla mostrando los lugares mas peligrosos y asi
+-- Posible extensión: ver un mapa que muestre los lugares con más reportes.
+-- Requiere latitud/longitud en locations. Si se implementa, reemplaza el listado
+-- tabular de zonas más reportadas.
 
 -- RAYSAFE - DATA
 -- =====================================================
 -- RAYSAFE - SEED DATA (datos de prueba)
--- Generado automáticamente según las reglas del documento de requerimientos.
+-- Seed data derivada del documento de requerimientos.
 -- Ejecutar DESPUÉS de correr el script de creación de tablas (raysafe schema).
 -- =====================================================
 

@@ -1,9 +1,10 @@
 /**
  * @file auth.middleware.ts
  * @capa Middleware
- * @descripcion Protege rutas con JWT:
- *               - authenticate: valida el token Bearer y adjunta req.user.
- *               - authorize: restringe por rol (currying).
+ * @descripcion Protege rutas con JWT: authenticate valida el token Bearer
+ *               y adjunta req.user. El control de rol vive en requireAdmin
+ *               y requireAgent (middleware/admin.middleware.ts y
+ *               middleware/agent.middleware.ts).
  *
  * Paquetes usados:
  * - jsonwebtoken -> verifica la firma y la expiración del token.
@@ -34,17 +35,3 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 };
-
-export const authorize =
-  (...roles: string[]) =>
-  (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'No autenticado' });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'No tienes permisos para esta acción' });
-    }
-
-    return next();
-  };

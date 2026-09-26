@@ -1,7 +1,8 @@
 /**
  * @file admin.middleware.ts
  * @capa Middleware
- * @descripcion requireAdmin: restringe rutas al rol Administrador (role_id = 1).
+ * @descripcion requireAdmin: restringe rutas al rol 'admin' (role_id = 2).
+ *               Compara por nombre de rol, no por role_id fijo.
  *               Resuelve role_id e institution_id consultando la BD a partir del
  *               id puesto por authenticate (reutiliza req.user sin modificarlo)
  *               y adjunta el contexto en req.admin.

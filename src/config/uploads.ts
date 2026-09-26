@@ -14,7 +14,7 @@ import path from 'node:path';
 import multer from 'multer';
 
 export const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
-export const EVIDENCE_DIR = path.join(UPLOADS_DIR, 'evidence');
+const EVIDENCE_DIR = path.join(UPLOADS_DIR, 'evidence');
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_FILE_COUNT = 1;
@@ -38,7 +38,7 @@ const extensionByMimetype: Record<string, string> = {
 
 mkdirSync(EVIDENCE_DIR, { recursive: true });
 
-export const isTypeAllowed = (mimetype: string): boolean =>
+const isTypeAllowed = (mimetype: string): boolean =>
   Object.prototype.hasOwnProperty.call(extensionByMimetype, mimetype);
 
 export const fileTypeFromMimetype = (mimetype: string): string => {

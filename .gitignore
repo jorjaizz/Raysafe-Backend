@@ -18,6 +18,3 @@ logs/
 # Sistema
 .DS_Store
 Thumbs.db
-
-# (En Windows) carpeta de Prisma generada localmente
-prisma/*.db
