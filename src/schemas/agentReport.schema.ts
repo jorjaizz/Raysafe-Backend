@@ -4,6 +4,7 @@
  * @descripcion Esquemas de zod del módulo "denuncias del agente":
  *               - createNoteSchema: valida el body del POST (nota interna).
  *               - updateStatusSchema: valida el body del PATCH (cambio de estado).
+ *               - takeReportSchema: valida el body del POST (tomar denuncia).
  *
  * Paquete usado:
  * - zod -> valida campos, tipos y longitudes.
@@ -24,3 +25,14 @@ export const updateStatusSchema = z.object({
     .max(2000, 'El comentario supera los 2000 caracteres')
     .optional(),
 });
+
+// Coincide con el ENUM risk_level de la tabla reports.
+export const riskLevelSchema = z.enum(['low', 'medium', 'high', 'critical'], {
+  errorMap: () => ({ message: 'El nivel de riesgo debe ser: low, medium, high o critical' }),
+});
+
+export const takeReportSchema = z.object({
+  risk_level: riskLevelSchema,
+});
+
+export type RiskLevel = z.infer<typeof riskLevelSchema>;

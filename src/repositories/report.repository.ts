@@ -7,8 +7,14 @@
  */
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../config/database';
+import { HttpError } from '../utils/HttpError';
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+// Nombres de los estados del flujo de una denuncia. Se consultan por nombre
+// (nunca por id) para que el seed pueda cambiar sin romper estas consultas.
+const STATUS_RECEIVED = 'Recibida';
+const STATUS_INVESTIGATING = 'En Investigación';
 
 export interface Report {
   id: number;
@@ -197,7 +203,8 @@ export interface UnassignedReportRow {
   id: number;
   public_id: string;
   abuse_type_name: string;
-  location_id: number | null;
+  city: string | null;
+  department: string | null;
   status_name: string;
   created_at: string;
 }
@@ -239,14 +246,15 @@ export const countUnassignedByInstitution = async (
   search?: string,
 ): Promise<number> => {
   const searchCond = buildSearchConditions(search);
-  const values = [institutionId, ...searchCond.values];
+  const values = [institutionId, STATUS_RECEIVED, ...searchCond.values];
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS total
      FROM reports r
      INNER JOIN abuse_types a ON a.id = r.abuse_type_id
+     INNER JOIN report_statuses s ON s.id = r.report_status_id
      LEFT JOIN locations l ON l.id = r.location_id
-     WHERE r.institution_id = ? AND r.agent_id IS NULL ${searchCond.clause}`,
+     WHERE r.institution_id = ? AND r.agent_id IS NULL AND s.name = ? ${searchCond.clause}`,
     values,
   );
 
@@ -260,20 +268,21 @@ export const findUnassignedByInstitution = async (
   limit: number,
 ): Promise<UnassignedReportRow[]> => {
   const searchCond = buildSearchConditions(search);
-  const values = [institutionId, ...searchCond.values, limit, offset];
+  const values = [institutionId, STATUS_RECEIVED, ...searchCond.values, limit, offset];
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT r.id,
             r.public_id,
             a.name AS abuse_type_name,
-            r.location_id,
+            l.city,
+            l.department,
             s.name AS status_name,
-            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+            DATE_FORMAT(r.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
      FROM reports r
      INNER JOIN abuse_types a ON a.id = r.abuse_type_id
      INNER JOIN report_statuses s ON s.id = r.report_status_id
      LEFT JOIN locations l ON l.id = r.location_id
-     WHERE r.institution_id = ? AND r.agent_id IS NULL ${searchCond.clause}
+     WHERE r.institution_id = ? AND r.agent_id IS NULL AND s.name = ? ${searchCond.clause}
      ORDER BY r.created_at DESC
      LIMIT ? OFFSET ?`,
     values,
@@ -292,7 +301,7 @@ export const findUnassignedById = async (
             r.risk_level,
             r.description,
             r.specific_address,
-            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+            DATE_FORMAT(r.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at,
             a.name AS abuse_type_name,
             l.city,
             l.department
@@ -300,8 +309,8 @@ export const findUnassignedById = async (
      INNER JOIN abuse_types a ON a.id = r.abuse_type_id
      INNER JOIN report_statuses s ON s.id = r.report_status_id
      LEFT JOIN locations l ON l.id = r.location_id
-     WHERE r.id = ? AND r.institution_id = ? AND r.agent_id IS NULL`,
-    [id, institutionId],
+     WHERE r.id = ? AND r.institution_id = ? AND r.agent_id IS NULL AND s.name = ?`,
+    [id, institutionId, STATUS_RECEIVED],
   );
 
   return (rows[0] as AgentReportDetailRow) ?? null;
@@ -317,7 +326,7 @@ export const findReportByIdForAgent = async (
             r.risk_level,
             r.description,
             r.specific_address,
-            DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+            DATE_FORMAT(r.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at,
             a.name AS abuse_type_name,
             l.city,
             l.department
@@ -335,7 +344,7 @@ export const findReportByIdForAgent = async (
 export const listEvidenceByReportId = async (reportId: number): Promise<EvidenceRow[]> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT id, file_type, file_url, description,
-            DATE_FORMAT(uploaded_at, '%Y-%m-%d %H:%i:%s') AS uploaded_at
+            DATE_FORMAT(uploaded_at, '%Y-%m-%dT%H:%i:%s') AS uploaded_at
      FROM evidence
      WHERE report_id = ?
      ORDER BY id`,
@@ -349,8 +358,17 @@ export interface AssignReportResult {
   id: number;
   public_id: string;
   risk_level: RiskLevel;
+  previous_status_name: string;
+  new_status_name: string;
+  agent_name: string;
+}
+
+interface LockedReportRow {
+  id: number;
+  public_id: string;
   report_status_id: number;
-  agent_id: number;
+  agent_id: number | null;
+  status_name: string;
 }
 
 export const assignToAgentWithRisk = async (
@@ -364,11 +382,46 @@ export const assignToAgentWithRisk = async (
   try {
     await conn.beginTransaction();
 
+    // FOR UPDATE bloquea la fila: dos agentes no pueden tomar la misma denuncia
+    // a la vez, y el estado se lee ya con el lock tomado.
+    const [lockRows] = await conn.query<RowDataPacket[]>(
+      `SELECT r.id,
+              r.public_id,
+              r.report_status_id,
+              r.agent_id,
+              s.name AS status_name
+       FROM reports r
+       INNER JOIN report_statuses s ON s.id = r.report_status_id
+       WHERE r.id = ? AND r.institution_id = ?
+       FOR UPDATE`,
+      [reportId, institutionId],
+    );
+
+    const current = lockRows[0] as LockedReportRow | undefined;
+
+    if (!current || current.agent_id !== null || current.status_name !== STATUS_RECEIVED) {
+      await conn.rollback();
+      return null;
+    }
+
+    const [statusRows] = await conn.query<RowDataPacket[]>(
+      'SELECT id FROM report_statuses WHERE name = ?',
+      [STATUS_INVESTIGATING],
+    );
+    const newStatusId = statusRows[0]?.id as number | undefined;
+
+    if (newStatusId === undefined) {
+      throw new HttpError(
+        500,
+        `El estado "${STATUS_INVESTIGATING}" no existe en report_statuses`,
+      );
+    }
+
     const [updateResult] = await conn.query<ResultSetHeader>(
       `UPDATE reports
-       SET agent_id = ?, report_status_id = 2, risk_level = ?
-       WHERE id = ? AND institution_id = ? AND agent_id IS NULL AND report_status_id = 1`,
-      [agentId, riskLevel, reportId, institutionId],
+       SET agent_id = ?, report_status_id = ?, risk_level = ?
+       WHERE id = ? AND agent_id IS NULL`,
+      [agentId, newStatusId, riskLevel, reportId],
     );
 
     if (updateResult.affectedRows === 0) {
@@ -376,17 +429,19 @@ export const assignToAgentWithRisk = async (
       return null;
     }
 
-    await conn.query(
-      `INSERT INTO status_history (report_id, previous_status_id, new_status_id, agent_id, comment)
-       VALUES (?, 1, 2, ?, 'Agente tomó la denuncia')`,
-      [reportId, agentId],
-    );
-
+    // El nombre se reutiliza para la nota interna y para la respuesta al cliente:
+    // una sola consulta en vez de dos.
     const [agentRows] = await conn.query<RowDataPacket[]>(
       'SELECT name FROM users WHERE id = ?',
       [agentId],
     );
-    const agentName = agentRows[0]?.name ?? 'Agente';
+    const agentName = (agentRows[0]?.name as string | undefined) ?? 'Agente';
+
+    await conn.query(
+      `INSERT INTO status_history (report_id, previous_status_id, new_status_id, agent_id, comment)
+       VALUES (?, ?, ?, ?, ?)`,
+      [reportId, current.report_status_id, newStatusId, agentId, 'Agente tomó la denuncia'],
+    );
 
     await conn.query(
       `INSERT INTO internal_notes (report_id, agent_id, content)
@@ -396,13 +451,14 @@ export const assignToAgentWithRisk = async (
 
     await conn.commit();
 
-    const [rows] = await conn.query<RowDataPacket[]>(
-      `SELECT id, public_id, risk_level, report_status_id, agent_id
-       FROM reports WHERE id = ?`,
-      [reportId],
-    );
-
-    return rows[0] as AssignReportResult;
+    return {
+      id: current.id,
+      public_id: current.public_id,
+      risk_level: riskLevel,
+      previous_status_name: current.status_name,
+      new_status_name: STATUS_INVESTIGATING,
+      agent_name: agentName,
+    };
   } catch (error) {
     await conn.rollback();
     throw error;

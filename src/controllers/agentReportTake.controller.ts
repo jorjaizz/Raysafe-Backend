@@ -1,33 +1,23 @@
 /**
  * @file agentReportTake.controller.ts
  * @capa Controller (Controlador)
- * @descripcion Recibe la petición HTTP para que un agente tome una denuncia,
- *               valida el risk_level, delega al Service y devuelve la respuesta.
+ * @descripcion Recibe la petición HTTP para que un agente tome una denuncia sin
+ *               asignar, delega la lógica al Service y devuelve la respuesta.
+ *               El body ya viene validado con zod (takeReportSchema).
+ *               No conoce MySQL.
  */
 import type { Request, Response } from 'express';
-import type { RowDataPacket } from 'mysql2/promise';
 import * as agentReportTakeService from '../services/agentReportTake.service';
 import { parseId } from '../utils/parseId';
 import { HttpError } from '../utils/HttpError';
-import { pool } from '../config/database';
 
+// POST /api/agent/reports/unassigned/:id/take
 export const takeUnassignedReport = async (req: Request, res: Response) => {
   try {
     const id = parseId(req, res);
     if (id === null) return;
 
     const { risk_level } = req.body;
-
-    if (!risk_level) {
-      return res.status(400).json({ error: 'El campo risk_level es obligatorio' });
-    }
-
-    const validRiskLevels = ['low', 'medium', 'high', 'critical'];
-    if (!validRiskLevels.includes(risk_level)) {
-      return res.status(400).json({
-        error: 'Nivel de riesgo inválido. Debe ser: low, medium, high o critical',
-      });
-    }
 
     const result = await agentReportTakeService.takeUnassignedReport(
       id,
@@ -42,18 +32,9 @@ export const takeUnassignedReport = async (req: Request, res: Response) => {
       });
     }
 
-    const [agentRows] = await pool.query<RowDataPacket[]>(
-      'SELECT name FROM users WHERE id = ?',
-      [req.agent!.id],
-    );
-    const agentName = agentRows[0]?.name ?? 'Agente';
-
     return res.status(200).json({
       message: 'Denuncia asignada correctamente',
-      report: {
-        ...result,
-        agente_asignado: { id: req.agent!.id, name: agentName },
-      },
+      report: result,
     });
   } catch (error) {
     if (error instanceof HttpError) {
