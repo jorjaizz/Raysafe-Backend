@@ -1,39 +1,84 @@
-# Raysafe Backend
+# Raysafe — Backend
 
-API REST para Raysafe, construida con **Express + TypeScript + MySQL** (sin ORM, usando `mysql2` directamente).
+API REST de RaySafe: sistema de denuncia y seguimiento de casos de abuso (personas y animales) en Guatemala.
+
+Construido con **Express + TypeScript + MySQL**, sin ORM (se usa `mysql2` directamente).
 
 ## Requisitos
 
-- Node.js 18+
-- MySQL 8 (o compatible) corriendo de forma local
-- `pnpm` (gestor de paquetes del proyecto)
+- Node.js 18 o superior (probado en Node 22; el proyecto no fija versión con `engines`)
+- MySQL 8 (o compatible) corriendo en local
+- `pnpm` (el proyecto usa `pnpm-lock.yaml`)
 
 ## Puesta en marcha
 
-1. **Crear la base de datos.** Ejecuta el script `src/db/raysafe-complete.sql` en tu MySQL: crea la BD `raysafe`, sus tablas y los datos de ejemplo.
+**1. Crear la base de datos**
 
-2. **Configurar el `.env`.** Copia `.env.example` a `.env` y ajusta las credenciales de tu MySQL:
+El script `src/db/raysafe-complete.sql` crea la base `raysafe`, todas las tablas y datos de ejemplo (100 usuarios, 120 denuncias, catálogos, ubicaciones de los 22 departamentos).
 
-   ```
-   PORT=3000
-   NODE_ENV=development
-   DB_HOST=localhost
-   DB_PORT=3306
-   DB_USER=root
-   DB_PASSWORD=tu_password
-   DB_NAME=raysafe
-   ```
+```bash
+mysql -u root -p < src/db/raysafe-complete.sql
+```
 
-3. **Instalar dependencias y correr:**
+**2. Configurar las variables de entorno**
 
-   ```
-   pnpm install
-   pnpm dev
-   ```
+Crea un archivo `.env` en la raíz (está en `.gitignore`, no lo subas):
 
-   El servidor queda en `http://localhost:3000`.
+```ini
+PORT=3000
+NODE_ENV=development
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=tu_password
+DB_NAME=raysafe
+JWT_SECRET=una_cadena_larga_y_aleatoria
+JWT_EXPIRES_IN=1h
+```
 
-## Estructura del proyecto
+`config/env.ts` valida el `.env` con zod al arrancar. Si algo falla, imprime el detalle y termina el proceso, así que un error de configuración se ve de inmediato.
+
+**Solo 4 son obligatorias** (sin valor por defecto, el proceso no arranca):
+
+| Variable | Regla |
+|---|---|
+| `DB_HOST` | No vacía |
+| `DB_USER` | No vacía |
+| `DB_NAME` | No vacía |
+| `JWT_SECRET` | Mínimo 16 caracteres |
+
+Las demás son opcionales y tienen valor por defecto:
+
+| Variable | Por defecto |
+|---|---|
+| `PORT` | `3000` |
+| `NODE_ENV` | `development` |
+| `DB_PORT` | `3306` |
+| `DB_PASSWORD` | *(vacío)* |
+| `JWT_EXPIRES_IN` | `1h` |
+
+> `DB_PASSWORD` cae en cadena vacía, así que si tu MySQL no tiene password puedes arrancarlo sin definirla. En cualquier otro caso, defínela.
+
+**3. Instalar y ejecutar**
+
+```bash
+pnpm install
+pnpm dev
+```
+
+El servidor queda en `http://localhost:3000`.
+
+## Scripts
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm dev` | Servidor de desarrollo con recarga automática (`tsx watch`) |
+| `pnpm build` | Compila TypeScript a `dist/` |
+| `pnpm start` | Ejecuta la versión compilada (`dist/server.js`) |
+
+> `pnpm start` requiere `pnpm build` antes. La carpeta `dist/` del repositorio puede estar desactualizada: úsala solo después de compilar.
+
+## Estructura
 
 ```
 src/
@@ -41,200 +86,146 @@ src/
   server.ts             Arranca el servidor
   config/
     env.ts              Valida las variables de entorno (zod)
-    database.ts         Pool de conexiones a MySQL (mysql2)
+    database.ts         Pool de conexiones a MySQL
+    uploads.ts          Configuración de multer para evidencias
   routes/               Define los endpoints y los conecta con sus controladores
   controllers/          Recibe req/res, delega en el service y responde
   services/             Lógica de negocio (no conoce HTTP ni MySQL)
-  repositories/         Consultas SQL contra MySQL (única capa que toca la BD)
+  repositories/         Consultas SQL (única capa que toca la base de datos)
   schemas/              Esquemas de validación con zod
-  middleware/           Funciones entre la petición y el controlador
-  db/                   Scripts SQL
+  middleware/           Autenticación, roles, validación y manejo de errores
+  utils/                Utilidades (HttpError, parseo de parámetros)
+  types/                Ampliación de tipos de Express
+  db/                   Script SQL de esquema y datos semilla
 ```
 
-El flujo de una petición es siempre de una sola vía:
+El flujo de una petición es siempre de una sola dirección:
 
 ```
-Ruta (routes) → [Middleware de validación] → Controller → Service → Repository → MySQL
+Ruta → [Middleware] → Controller → Service → Repository → MySQL
 ```
 
-Cada capa importa solo a la inmediata: el controller nunca toca MySQL ni el service, el service nunca responde HTTP y el repository solo ejecuta SQL.
+Cada capa conoce únicamente a la siguiente: el controller nunca toca MySQL, el service nunca responde HTTP y el repository solo ejecuta SQL.
+
+## Autenticación
+
+La API usa **JWT en cabecera `Authorization`**. No hay cookies ni sesiones.
+
+```
+Authorization: Bearer <token>
+```
+
+El token se obtiene en `POST /api/auth/login`. Hay tres roles:
+
+| Rol | Significado |
+|---|---|
+| `agente` | Personal de la institución que atiende las denuncias |
+| `admin` | Administración del panel |
+
+Cada endpoint indica el acceso requerido en la tabla siguiente.
 
 ## Endpoints
 
-| Método | Ruta                   | Descripción                          |
-|--------|------------------------|--------------------------------------|
-| GET    | `/api/abuse-types`     | Lista todos los tipos de abuso       |
-| GET    | `/api/abuse-types/:id` | Obtiene un tipo de abuso por su id   |
-| POST   | `/api/abuse-types`     | Crea un tipo de abuso                |
-| PUT    | `/api/abuse-types/:id` | Actualiza un tipo de abuso completo  |
-| DELETE | `/api/abuse-types/:id` | Elimina un tipo de abuso             |
+Base: `http://localhost:3000/api`
 
-### Ejemplo de body para POST / PUT
+### Público — ciudadano (sin login)
 
-```json
-{
-  "category": "human",
-  "name": "Nuevo tipo de abuso",
-  "description": "Descripción opcional"
-}
-```
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/abuse-types` | Tipos de abuso. Filtro opcional `?category=human\|animal` |
+| `GET` | `/abuse-types/:id` | Detalle de un tipo de abuso |
+| `GET` | `/locations/departments` | Los 22 departamentos |
+| `GET` | `/locations/municipalities?department=X` | Municipios de un departamento |
+| `GET` | `/report-statuses` | Estados del flujo de una denuncia |
+| `GET` | `/help-resources` | Recursos de ayuda (líneas de emergencia, centros) |
+| `GET` | `/educational-guides` | Guías y marcos legales |
+| `GET` | `/stats/dashboard` | Estadísticas por departamento |
+| `POST` | `/reports` | Crear una denuncia |
+| `GET` | `/reports/track/:publicId` | Consultar una denuncia. Con `?token=X` devuelve el detalle completo |
+| `PUT` | `/reports/track/:publicId` | Editar la denuncia mientras siga en estado `Recibida` |
+| `POST` | `/reports/:publicId/evidence` | Adjuntar evidencia (multipart, requiere token) |
+| `GET` | `/reports/:publicId/evidence` | Listar evidencias (requiere token) |
+| `PATCH` | `/reports/:publicId/evidence/:evidenceId` | Editar la descripción (requiere token) |
+| `DELETE` | `/reports/:publicId/evidence/:evidenceId` | Eliminar evidencia (requiere token) |
+| `POST` | `/auth/login` | Iniciar sesión |
 
-`category` solo acepta `human` o `animal` (lo valida zod y coincide con el `ENUM` de la tabla).
+> **Seguimiento de denuncia:** al crearla, la API devuelve un `public_id` (`DN-XXXX-XXXX`) y un `token`. Ese token se muestra **una sola vez**: la base de datos solo guarda su hash SHA-256. Sin él, el ciudadano solo puede ver el estado y el tipo de abuso, no los datos de la denuncia.
 
-### Códigos de respuesta
+### Requiere rol `admin`
 
-- `200` éxito (GET, PUT)
-- `201` creado (POST)
-- `204` eliminado sin contenido (DELETE)
-- `400` body inválido (con `details` de los errores de zod)
-- `404` recurso no encontrado (`{ "error": "..." }`)
-- `409` conflicto: no se puede eliminar porque el registro está asociado a otros (violación de foreign key)
-- `500` error interno (`{ "error": "Error interno del servidor" }`)
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/abuse-types` | Crear tipo de abuso |
+| `PUT` | `/abuse-types/:id` | Actualizar tipo de abuso |
+| `DELETE` | `/abuse-types/:id` | Eliminar tipo de abuso |
+| `GET` | `/admin/agents` | Listar agentes (paginado) |
+| `GET` | `/admin/agents/:id` | Detalle de un agente |
+| `POST` | `/admin/agents` | Crear agente |
+| `PATCH` | `/admin/agents/:id` | Actualizar rol o estado |
+| `GET` | `/admin/reports` | Bitácora de denuncias (paginado, con búsqueda) |
+| `GET` | `/admin/reports/:id` | Expediente completo de una denuncia |
+| `GET` | `/auth/me` | Datos del usuario autenticado (cualquier rol) |
 
-## Cómo crear un endpoint nuevo
+> Los endpoints de agentes y de la bitácora filtran por institución: un admin solo ve los datos de su propia institución.
 
-Usa el módulo `abuse_types` como referencia. Para una nueva tabla `X`, crea 4 archivos y monta la ruta:
+### Requiere rol `agente`
 
-1. `src/repositories/x.repository.ts` → consultas SQL
-2. `src/services/x.service.ts` → lógica de negocio
-3. `src/controllers/x.controller.ts` → manejo de HTTP
-4. `src/routes/x.routes.ts` → rutas
-5. Montar en `src/app.ts`
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/agent/reports/unassigned` | Denuncias sin asignar (paginado) |
+| `GET` | `/agent/reports/unassigned/:id` | Detalle de una denuncia sin asignar |
+| `POST` | `/agent/reports/unassigned/:id/take` | Tomar una denuncia (define el nivel de riesgo) |
+| `GET` | `/agent/reports` | Denuncias asignadas al agente |
+| `GET` | `/agent/reports/:id` | Detalle de una denuncia asignada |
+| `POST` | `/agent/reports/:id/notes` | Agregar nota interna |
+| `PATCH` | `/agent/reports/:id/status` | Cambiar el estado de la denuncia |
 
-Y, si hace falta, un esquema en `src/schemas/x.schema.ts` para validar el body con zod.
+**33 endpoints en total.** Todos los datos están filtrados por institución: un agente solo ve los casos de su institución.
 
-### 1. Repository — `src/repositories/x.repository.ts`
+## Códigos de respuesta
 
-Aquí vive la pura consulta SQL. No recibe `req` ni `res`. Toda consulta con datos del usuario usa placeholders `?` para evitar inyección SQL.
+| Código | Cuándo |
+|---|---|
+| `200` | Éxito en consulta o actualización |
+| `201` | Recurso creado |
+| `204` | Recurso eliminado |
+| `400` | Body o parámetros inválidos (incluye detalle de validación de zod) |
+| `401` | Sin token, token inválido o expirado |
+| `403` | Autenticado pero sin el rol requerido, o token de seguimiento incorrecto |
+| `404` | Recurso no encontrado |
+| `409` | Conflicto: la denuncia ya avanzó de estado, o la foreign key impide eliminar |
+| `500` | Error interno del servidor |
 
-```ts
-import type { RowDataPacket } from 'mysql2/promise';
-import { pool } from '../config/database';
+Los errores devuelven siempre `{ "error": "mensaje" }`.
 
-export const getAllX = async (): Promise<X[]> => {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM x ORDER BY id',
-  );
-  return rows as X[];
-};
+## Añadir un módulo nuevo
 
-export const getXById = async (id: number): Promise<X | null> => {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM x WHERE id = ?', [id],
-  );
-  return (rows[0] as X) ?? null;
-};
-```
+Para una tabla nueva `x`, crea las capas en este orden y monta la ruta:
 
-Para escritura usa `ResultSetHeader` como tipo de resultado:
+1. `src/repositories/x.repository.ts` — las consultas SQL, siempre con placeholders `?`
+2. `src/services/x.service.ts` — la lógica de negocio
+3. `src/controllers/x.controller.ts` — el manejo de `req`/`res`
+4. `src/routes/x.routes.ts` — las rutas
+5. `src/app.ts` — `app.use('/api', xRoutes)`
 
-```ts
-import type { ResultSetHeader } from 'mysql2/promise';
+Si recibe body, agrega `src/schemas/x.schema.ts` con zod y aplica `validate(xSchema)` antes del controlador.
 
-export const insertX = async (data: X) => {
-  const [result] = await pool.query<ResultSetHeader>(
-    'INSERT INTO x (name) VALUES (?)', [data.name],
-  );
-  return { id: result.insertId, ...data };
-};
+**Reglas del patrón**
 
-export const updateX = async (id: number, data: X): Promise<boolean> => {
-  const [result] = await pool.query<ResultSetHeader>(
-    'UPDATE x SET name = ? WHERE id = ?', [data.name, id],
-  );
-  return result.affectedRows > 0;
-};
+- Las rutas solo enrutan; los controllers solo manejan HTTP; los services solo lógica; los repositories solo SQL.
+- Nunca escribas `pool.query` fuera de un repository.
+- Nunca concatenes valores en el SQL: usa placeholders con array.
+- Valida el body con zod antes de que llegue al controller.
+- Las rutas que escriben datos sensibles deben llevar `authenticate` y el `require*` de rol correspondiente.
 
-export const removeX = async (id: number): Promise<boolean> => {
-  const [result] = await pool.query<ResultSetHeader>(
-    'DELETE FROM x WHERE id = ?', [id],
-  );
-  return result.affectedRows > 0;
-};
-```
+## Documentación de la API
 
-### 2. Service — `src/services/x.service.ts`
+En `docs/` hay una colección de Postman (`raysafe.postman_collection.json`) con su environment para `http://localhost:3000/api`.
 
-Solo lógica de negocio, sin SQL: delega en el repository.
+> Las credenciales que trae la colección no coinciden con los datos semilla del script SQL. Actualízalas antes de usarla.
 
-```ts
-import * as xRepository from '../repositories/x.repository';
+## Notas
 
-export const getAllX = () => xRepository.getAllX();
-export const getXById = (id: number) => xRepository.getXById(id);
-export const createX = (data: xRepository.X) => xRepository.insertX(data);
-export const updateX = (id: number, data: xRepository.X) => xRepository.updateX(id, data);
-export const deleteX = (id: number) => xRepository.removeX(id);
-```
-
-### 3. Controller — `src/controllers/x.controller.ts`
-
-Traduce HTTP: recibe `req/res`, llama al service y responde con el código correcto.
-
-```ts
-import type { Request, Response } from 'express';
-import * as xService from '../services/x.service';
-
-export const getXs = async (_req: Request, res: Response) => {
-  try {
-    const xs = await xService.getAllX();
-    return res.status(200).json(xs);
-  } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-```
-
-- `req.params` para `:id` (ej. `Number(req.params.id)`)
-- `req.body` para el contenido de POST/PUT (ya validado por zod)
-- Responde `404` si el recurso no existe, `201` en creación
-
-### 4. Rutas — `src/routes/x.routes.ts`
-
-Mapea el verbo HTTP con la ruta y el controlador. Para validar el body, agrega el middleware `validate` con un esquema de zod antes del controlador:
-
-```ts
-import { Router } from 'express';
-import { getXs, getX, postX, putX, deleteX } from '../controllers/x.controller';
-import { validate } from '../middleware/validate.middleware';
-import { xSchema } from '../schemas/x.schema';
-
-const router = Router();
-
-router.get('/xs', getXs);
-router.get('/xs/:id', getX);
-router.post('/xs', validate(xSchema), postX);
-router.put('/xs/:id', validate(xSchema), putX);
-router.delete('/xs/:id', deleteX);
-
-export default router;
-```
-
-### 5. Montar la ruta — `src/app.ts`
-
-```ts
-import xRoutes from './routes/x.routes';
-// ...
-app.use('/api', xRoutes);
-```
-
-### 6. Validación — `src/schemas/x.schema.ts`
-
-Define el esquema con zod; el middleware `validate` lo aplica a cada POST/PUT:
-
-```ts
-import { z } from 'zod';
-
-export const xSchema = z.object({
-  name: z.string().min(1, 'El nombre es obligatorio'),
-});
-```
-
-### Reglas de oro del patrón
-
-- `routes` solo enruta; `controllers` solo responden HTTP; `services` solo lógica de negocio; `repositories` solo tocan MySQL.
-- Nunca hagas `pool.query` dentro de un controller ni de un service: pásalo al repository.
-- Siempre usa placeholders `?` con array de valores en las consultas (nada de concatenar strings).
-- Valida el body con zod antes de llegar al controller.
-- Los middlewares van entre la ruta y el controlador (`validate`) o como manejo global de errores.
+- **No hay tests ni linter configurados.** La verificación disponible es `pnpm build` (TypeScript en modo estricto).
+- Las evidencias se guardan en `uploads/evidence/` y se sirven desde `/uploads`.
+- `helmet` está activo. `cors()` se usa sin restricciones y no hay límite de peticiones; es aceptable en desarrollo local, pero conviene restrictarlo antes de exponer la API.

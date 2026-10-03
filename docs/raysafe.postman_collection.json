@@ -1,0 +1,484 @@
+{
+  "info": {
+    "name": "Raysafe Backend API",
+    "description": "Colección de endpoints del backend de Raysafe (Express + TypeScript + MySQL).\n\nAutenticación: JWT vía header `Authorization: Bearer <token>`.\n\n1. Ejecuta `POST /auth/login` con credenciales válidas: guarda automáticamente el token en la variable `token` de la colección.\n2. Las rutas protegidas (admin/** y /auth/me) usan esa variable automáticamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@raysafe.com\",\n  \"password\": \"secret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Inicia sesión y devuelve `{ token, user }`. Guarda el token en la variable de colección para usarlo en las rutas protegidas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (pm.response.code === 200 && json.token) {",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "}",
+                  "pm.test('Login exitoso', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Devuelve el usuario autenticado a partir del token JWT."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "POST /reports",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abuse_type_id\": 1,\n  \"description\": \"Descripción del hecho denunciado(s)\",\n  \"specific_address\": \"Calle A, zona 1\",\n  \"location_id\": 1101,\n  \"notification_email\": \"correo@mail.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports"]
+            },
+            "description": "Crea una denuncia. Pública, no requiere autenticación. Campos opcionales: specific_address, location_id, notification_email."
+          }
+        },
+        {
+          "name": "GET /reports/track/:publicId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/track/DN-0000-0000?token=abc123",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "track", "DN-0000-0000"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "abc123",
+                  "description": "Opcional: token del denunciante para ver datos completos."
+                }
+              ]
+            },
+            "description": "Consulta una denuncia por su public_id (formato DN-XXXX-XXXX). El query param token es opcional."
+          }
+        },
+        {
+          "name": "PUT /reports/track/:publicId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"abc123\",\n  \"description\": \"Nueva descripción del hecho\",\n  \"specific_address\": \"Otra dirección, zona 5\",\n  \"location_id\": 1102,\n  \"notification_email\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports/track/DN-0000-0000",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "track", "DN-0000-0000"]
+            },
+            "description": "Modifica una denuncia desde el rastreo del denunciante. Requiere el token del denunciante y al menos un campo a modificar."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catálogos públicos",
+      "item": [
+        {
+          "name": "GET /locations/departments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "departments"]
+            },
+            "description": "Lista de departamentos de Guatemala."
+          }
+        },
+        {
+          "name": "GET /locations/municipalities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/municipalities?department=Guatemala",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "municipalities"],
+              "query": [
+                {
+                  "key": "department",
+                  "value": "Guatemala",
+                  "description": "Obligatorio: nombre del departamento."
+                }
+              ]
+            },
+            "description": "Municipios de un departamento. El parámetro department es obligatorio."
+          }
+        },
+        {
+          "name": "GET /help-resources",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/help-resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["help-resources"]
+            },
+            "description": "Catálogo de recursos de ayuda."
+          }
+        },
+        {
+          "name": "GET /educational-guides",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/educational-guides",
+              "host": ["{{baseUrl}}"],
+              "path": ["educational-guides"]
+            },
+            "description": "Catálogo de guías educativas."
+          }
+        },
+        {
+          "name": "GET /stats/dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["stats", "dashboard"]
+            },
+            "description": "Estadísticas del dashboard."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Abuse Types",
+      "item": [
+        {
+          "name": "GET /abuse-types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abuse-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["abuse-types"]
+            },
+            "description": "Lista todos los tipos de abuso."
+          }
+        },
+        {
+          "name": "GET /abuse-types/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abuse-types/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["abuse-types", "1"]
+            },
+            "description": "Obtiene un tipo de abuso por id."
+          }
+        },
+        {
+          "name": "POST /abuse-types",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"human\",\n  \"name\": \"Violencia física\",\n  \"description\": \"Descripción opcional\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/abuse-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["abuse-types"]
+            },
+            "description": "Crea un tipo de abuso. category: 'human' | 'animal'. Rutas CRUD sin middleware de auth."
+          }
+        },
+        {
+          "name": "PUT /abuse-types/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"animal\",\n  \"name\": \"Maltrato animal\",\n  \"description\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/abuse-types/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["abuse-types", "1"]
+            },
+            "description": "Actualiza un tipo de abuso (el schema exige category y name)."
+          }
+        },
+        {
+          "name": "DELETE /abuse-types/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abuse-types/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["abuse-types", "1"]
+            },
+            "description": "Elimina un tipo de abuso."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Agents",
+      "item": [
+        {
+          "name": "POST /admin/agents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Juan Pérez\",\n  \"email\": \"juan@mail.com\",\n  \"password\": \"secret123\",\n  \"role\": \"agent\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "agents"]
+            },
+            "description": "Crea un agente (requiere rol admin). role: 'agent' | 'admin' (por defecto 'agent')."
+          }
+        },
+        {
+          "name": "GET /admin/agents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "agents"]
+            },
+            "description": "Lista agentes (requiere rol admin)."
+          }
+        },
+        {
+          "name": "GET /admin/agents/:id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/agents/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "agents", "1"]
+            },
+            "description": "Obtiene un agente por id (requiere rol admin)."
+          }
+        },
+        {
+          "name": "PATCH /admin/agents/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleId\": 2,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/agents/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "agents", "1"]
+            },
+            "description": "Actualiza rol (roleId) y/o estado (active) de un agente. No puede editarse a sí mismo."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Reports",
+      "item": [
+        {
+          "name": "GET /admin/reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports"]
+            },
+            "description": "Registro de denuncias para el panel admin (requiere rol admin)."
+          }
+        },
+        {
+          "name": "GET /admin/reports/:id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "1"]
+            },
+            "description": "Detalle de una denuncia para el panel admin (requiere rol admin)."
+          }
+        }
+      ]
+    }
+  ]
+}

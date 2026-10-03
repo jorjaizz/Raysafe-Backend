@@ -8,7 +8,8 @@ import * as abuseTypeRepository from '../repositories/abuseType.repository';
 
 export type { AbuseType, AbuseTypeInput } from '../repositories/abuseType.repository';
 
-export const getAllAbuseTypes = () => abuseTypeRepository.findAll();
+export const getAllAbuseTypes = (category?: 'human' | 'animal') =>
+  abuseTypeRepository.findAll(category);
 
 export const getAbuseTypeById = (id: number) => abuseTypeRepository.findById(id);
 

@@ -19,9 +19,11 @@ const envSchema = z.object({
   DB_USER: z.string().min(1, 'DB_USER es obligatoria'),
   DB_PASSWORD: z.string().default(''),
   DB_NAME: z.string().min(1, 'DB_NAME es obligatoria'),
+  JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres'),
+  JWT_EXPIRES_IN: z.string().default('1h'),
 });
 
-const parsed = envSchema.safeParse(process.env);
+const parsed = envSchema.safeParse(process.env); 
 
 if (!parsed.success) {
   console.error('Variables de entorno inválidas:', parsed.error.flatten().fieldErrors);
